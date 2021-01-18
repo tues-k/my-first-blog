@@ -1,199 +1,216 @@
-// 操作方法：
-// 十字キーで移動できます。
+'use strict';
 
-/**
- * ダンジョンの1階層をあらわすクラス
- */
-class Level {
-    constructor() {
-      /** タイルマップ。0は床、1は壁をあらわす */
-      this.tiles = [
-        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-        1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,
-        1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,
-        1,0,0,0,0,0,0,1,1,1,0,1,1,1,1,1,1,1,1,1,
-        1,1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,
-        1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-        1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-        1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,
-        1,1,1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,
-        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-      ];
-      /** タイルマップの横幅 */
-      this.lenX = 20;
-      /** タイルマップの縦幅 */
-      this.lenY = 10;
-    }
-    /**
-     * @returns {number} 座標(x,y)のタイルの番号を返す。(x,y)が範囲外なら1を返す。
-     * @param {number} x 
-     * @param {number} y 
-     */
-    tileAt(x,y) {
-      if (x<0 || x>=this.lenX || y<0 || y>=this.lenY) return 1;
-      return this.tiles[y*this.lenX + x];
-    }
-  }
-  
+class Vec2 {
   /**
-   * プレイヤーや敵キャラなどをあらわすクラス
+   * @param {number} x
+   * @param {number} y
    */
-  class Actor {
-    constructor(x,y,image) {
-      this.x = x;
-      this.y = y;
-      this.image = image;
-    }
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
   }
-  
   /**
-   * カメラのクラス
+   * @param {Vec2} b
    */
-  class Camera {
-    /**
-     * @param {number} x カメラのX座標。単位はタイル
-     * @param {number} y カメラのY座標。単位はタイル
-     */
-    constructor(x,y) {
-      this.x = x;
-      this.y = y;
-    }
+  add(b) {
+    let a = this;
+    return new Vec2(a.x+b.x, a.y+b.y);
   }
-  
   /**
-   * 移動コマンド
+   * @param {Vec2} b
    */
-  class ComMove {
-    /**
-     * @param {Actor} actor 移動させたいアクター
-     * @param {number} dx 何マス移動するか
-     * @param {number} dy 何マス移動するか
-     */
-    constructor(actor, dx, dy) {
-      let t = this;
-      t.actor = actor;
-      t.dx = dx;
-      t.dy = dy;
-      t.beginX = -1;
-      t.beginY = -1;
-      t.endX = -1;
-      t.endY = -1;
-      /** 実行したフレーム数 */
-      t.f = 0;
-    }
-    /**
-     * コマンドを1フレーム実行する
-     */
-    exec() {
-      let t = this;
-      if (t.done) return t.done; //終了しているコマンドは実行しない
-      t.f++;
-      if (t.f === 1) {
-        // 開始地点と終了地点の座標を計算
-        t.beginX = t.actor.x;
-        t.beginY = t.actor.y;
-        t.endX = t.actor.x + t.dx;
-        t.endY = t.actor.y + t.dy;
-      }
-      // ↑で計算した座標の間を移動する
-      t.actor.x = t.beginX + t.f*t.dx/20;
-      t.actor.y = t.beginY + t.f*t.dy/20;
-  
-      return t.done;
-    }
-    /**
-     * @returns {boolean} コマンドが終了していればtrue, 実行中ならfalse
-     */
-    get done() {
-      return this.f >= 20;
-    }
+  sub(b) {
+    let a = this;
+    return new Vec2(a.x-b.x, a.y-b.y);
   }
-  
+  copy() {
+    return new Vec2(this.x, this.y);
+  }
   /**
-   * ゲームの状態をまとめるクラス
+   * @param {number} s
    */
-  class Game {
-    constructor() {
-      this.level = new Level();
-      this.player = null;
-      this.actors = [];
-      this.camera = new Camera(0,0);
-      this.commands = [];
-    }
+  mult(s) {
+    return new Vec2(s*this.x, s*this.y);
   }
-  let game;
-  
+  mag() {
+    return sqrt(this.x ** 2 + this.y ** 2);
+  }
+}
+
+class Ray2 {
   /**
-   * p5.js の準備ができた直後に計算される関数
+   * @param {Vec2} pos このレイの始点の位置ベクトル.
+   * @param {Vec2} way このレイの始点から伸びる方向ベクトル.
    */
-  function setup() {
-    // ゲームの状態を初期化
-    game = new Game();
-  
-    // プレイヤーを作る
-    let player = new Actor(4,2,'🐤');
-    game.player = player;
-  
-    // 敵を作る
-    let enemy = new Actor(2,1,'🦗');
-  
-    // 初期配置のアクター
-    game.actors = [player, enemy];
-  
-    // キャンバスを作る
-    createCanvas(480,480);
+  constructor(pos, way) {
+    this.pos = pos;
+    this.way = way;
   }
-  
   /**
-   * p5.js によって毎フレーム計算される関数
+   * @param {Vec2} begin
+   * @param {Vec2} end
    */
-  function draw() {
-    // 1マスの大きさ
-    let w = 60;
-  
-    // プレイヤーの入力を受け付ける
-    if (keyIsPressed && game.commands.length === 0) {
-      let dxy = {37:[-1,0], 38:[0,-1], 39:[1,0], 40:[0,1]}[keyCode];
-      if (dxy !== undefined) {
-        game.commands.push(new ComMove(game.player, dxy[0], dxy[1]));
-  
-        // 仮に、敵を移動させてみる
-        game.commands.push(new ComMove(game.actors[1], 0, 1));
-      }
-    }
-  
-    // コマンドをすべて1フレーム分実行する
-    for(let c of game.commands) {
-      c.exec();
-    }
-    // 実行し終わったコマンドを消す
-    game.commands = game.commands.filter(c => !c.done);
-  
-    // カメラを、プレイヤーが画面の中央へ来るよう調整
-    let p = game.player;
-    let c = game.camera;
-    c.x = p.x - 7/2;
-    c.y = p.y - 7/2;
-    let cx = w * c.x;
-    let cy = w * c.y;
-  
-    // キャンバスを背景色で塗りつぶす
-    background('Bisque');
-    // レベル（ダンジョンの1階層）を描画
-    textAlign(LEFT, TOP);
-    textSize(w*7/8);
-    for(let y=0; y<10; y++) {
-      for(let x=0; x<20; x++) {
-        let t = game.level.tileAt(x,y);
-        if (t === 1) {
-          text('🌳', w*x-cx, w*y-cy);
-        }
-      }
-    }
-  
-    // アクター（主人公や敵キャラなど）を描画
-    for(let a of game.actors) {
-      text(a.image, w*a.x-cx, w*a.y-cy);
+  static withPoints(begin, end) {
+    return new Ray2(begin, end.sub(begin));
+  }
+  get begin() {
+    return this.pos;
+  }
+  get end() {
+    return this.pos.add(this.way);
+  }
+  /**
+   * @param {Ray2} r2
+   */
+  intersection(r2) {
+    let r1 = this;
+    // Y軸並行の線分はこのコードでは扱えないので、並行の場合は微妙にずらす
+    // an dirty hack since this code cannot handle Y-axis parallel rays.
+    if (abs(r1.way.x) < 0.01) r1.way.x = 0.01;
+    if (abs(r2.way.x) < 0.01) r2.way.x = 0.01;
+
+    // r1,r2を直線として見て、その交点を求める
+    // Treat r1,r2 as straight lines and calc the intersection point.
+    let t1 = r1.way.y / r1.way.x;
+    let t2 = r2.way.y / r2.way.x;
+    let x1 = r1.pos.x;
+    let x2 = r2.pos.x;
+    let y1 = r1.pos.y;
+    let y2 = r2.pos.y;
+    let sx = (t1*x1 - t2*x2 - y1 + y2) / (t1 - t2);
+    let sy = t1 * (sx - x1) + y1;
+
+    // 交点が線分上にないときはnullを返す
+    // Return null if the intersection point is not on r1 and r2.
+    if (
+      sx > min(r1.begin.x, r1.end.x)
+      && sx < max(r1.begin.x, r1.end.x)
+      && sx > min(r2.begin.x, r2.end.x)
+      && sx < max(r2.begin.x, r2.end.x)
+    ){
+      return new Vec2(sx, sy);
+    }else{
+      return null;
     }
   }
+}
+
+class Player {
+  constructor() {
+    this.pos = new Vec2(0, 0);
+    this.angle = 0;
+  }
+}
+
+class Game {
+  constructor() {
+    this.player = new Player();
+    this.walls = [];
+  }
+  reset() {
+    this.player.pos = new Vec2(150, 250);
+    this.player.angle = 0;
+
+    this.walls = [
+      Ray2.withPoints(new Vec2(50, 50), new Vec2(100, 300)),
+      Ray2.withPoints(new Vec2(100, 300), new Vec2(250, 200)),
+      Ray2.withPoints(new Vec2(250, 200), new Vec2(50, 50)),
+    ];
+  }
+}
+
+// グローバル変数 Global variables
+let game;
+
+function setup() {
+  createCanvas(720, 480);
   
+  game = new Game();
+  game.reset();
+}
+
+function draw() {
+  noSmooth();
+
+  // 背景
+  background(64);
+
+  // 壁を描画. Draw the walls
+  strokeWeight(3);
+  stroke('white');
+  let walls = game.walls;
+  for(let wall of walls) {
+    line(wall.begin.x, wall.begin.y, wall.end.x, wall.end.y);
+  }
+
+  // プレイヤーを描画. Draw the player
+  stroke('yellow');
+  strokeWeight(20);
+  let player = game.player;
+  point(player.pos.x, player.pos.y);
+
+  // キー入力. Key input
+  if (keyIsDown(LEFT_ARROW)) player.angle -= PI / 120;
+  if (keyIsDown(RIGHT_ARROW)) player.angle += PI / 120;
+
+  // 3Dビューを描画. Draw the 3d view.
+  {
+    let viewRect = new Ray2(new Vec2(380, 40), new Vec2(320, 240));
+
+    let fov = PI / 2;
+    let centerAngle = player.angle;
+    let leftAngle = centerAngle - fov/2;
+    let rightAngle = centerAngle + fov/2;
+    let beamTotal = 32;
+    let beamIndex = -1;
+    for(let angle=leftAngle; angle<rightAngle-0.01; angle+=fov/beamTotal) {
+      beamIndex++;
+      let beam = new Ray2(
+        player.pos.copy(),
+        new Vec2(cos(angle), sin(angle)).mult(120)
+      );
+      stroke('yellow');
+      strokeWeight(1);
+      line(beam.begin.x, beam.begin.y, beam.end.x, beam.end.y);
+
+      // 光線が2枚以上の壁にあたっていたら、一番近いものを採用する。
+      // Adapt the nearest beam.
+      let allHitBeamWays = walls.map(wall => beam.intersection(wall))
+        .filter(pos => pos !== null)
+        .map(pos => pos.sub(beam.begin));
+      if (allHitBeamWays.length === 0) continue;
+      let hitBeam = allHitBeamWays.reduce((a, b) => a.mag() < b.mag() ? a : b);
+
+      stroke('yellow');
+      strokeWeight(8);
+      let hitPos = hitBeam.add(beam.begin);
+      point(hitPos.x, hitPos.y);
+
+      let wallDist = hitBeam.mag();
+      let wallPerpDist = wallDist * cos(angle - centerAngle);
+      let lineHeight = constrain(2800 / wallPerpDist, 0, viewRect.way.y);
+      let lineBegin = viewRect.begin.add(
+        new Vec2(
+          viewRect.way.x/beamTotal*beamIndex,
+          viewRect.way.y/2-lineHeight/2
+        )
+      );
+      let lightness = 224;
+      strokeWeight(0);
+      fill(lightness);
+      rect(lineBegin.x, lineBegin.y, 7, lineHeight);
+    }
+
+    // 3Dビューの枠を描画. Draw border lines of the 3d view.
+    noFill();
+    stroke('cyan');
+    strokeWeight(4);
+    rect(viewRect.pos.x, viewRect.pos.y, viewRect.way.x, viewRect.way.y);
+  }
+}
+
+function touchMoved(event) {
+  let player = game.player;
+  player.pos.x = event.clientX;
+  player.pos.y = event.clientY;
+}
