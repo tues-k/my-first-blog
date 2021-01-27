@@ -1,216 +1,267 @@
-'use strict';
+// ---- エンティティ関連の関数 ---------------------------------------------
+let f1 = 0;
+let score = 0;
+// 全エンティティ共通
 
-class Vec2 {
-  /**
-   * @param {number} x
-   * @param {number} y
-   */
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-  }
-  /**
-   * @param {Vec2} b
-   */
-  add(b) {
-    let a = this;
-    return new Vec2(a.x+b.x, a.y+b.y);
-  }
-  /**
-   * @param {Vec2} b
-   */
-  sub(b) {
-    let a = this;
-    return new Vec2(a.x-b.x, a.y-b.y);
-  }
-  copy() {
-    return new Vec2(this.x, this.y);
-  }
-  /**
-   * @param {number} s
-   */
-  mult(s) {
-    return new Vec2(s*this.x, s*this.y);
-  }
-  mag() {
-    return sqrt(this.x ** 2 + this.y ** 2);
-  }
-}
-
-class Ray2 {
-  /**
-   * @param {Vec2} pos このレイの始点の位置ベクトル.
-   * @param {Vec2} way このレイの始点から伸びる方向ベクトル.
-   */
-  constructor(pos, way) {
-    this.pos = pos;
-    this.way = way;
-  }
-  /**
-   * @param {Vec2} begin
-   * @param {Vec2} end
-   */
-  static withPoints(begin, end) {
-    return new Ray2(begin, end.sub(begin));
-  }
-  get begin() {
-    return this.pos;
-  }
-  get end() {
-    return this.pos.add(this.way);
-  }
-  /**
-   * @param {Ray2} r2
-   */
-  intersection(r2) {
-    let r1 = this;
-    // Y軸並行の線分はこのコードでは扱えないので、並行の場合は微妙にずらす
-    // an dirty hack since this code cannot handle Y-axis parallel rays.
-    if (abs(r1.way.x) < 0.01) r1.way.x = 0.01;
-    if (abs(r2.way.x) < 0.01) r2.way.x = 0.01;
-
-    // r1,r2を直線として見て、その交点を求める
-    // Treat r1,r2 as straight lines and calc the intersection point.
-    let t1 = r1.way.y / r1.way.x;
-    let t2 = r2.way.y / r2.way.x;
-    let x1 = r1.pos.x;
-    let x2 = r2.pos.x;
-    let y1 = r1.pos.y;
-    let y2 = r2.pos.y;
-    let sx = (t1*x1 - t2*x2 - y1 + y2) / (t1 - t2);
-    let sy = t1 * (sx - x1) + y1;
-
-    // 交点が線分上にないときはnullを返す
-    // Return null if the intersection point is not on r1 and r2.
-    if (
-      sx > min(r1.begin.x, r1.end.x)
-      && sx < max(r1.begin.x, r1.end.x)
-      && sx > min(r2.begin.x, r2.end.x)
-      && sx < max(r2.begin.x, r2.end.x)
-    ){
-      return new Vec2(sx, sy);
-    }else{
-      return null;
+function updatePosition(entity) {
+    if (f1 % 1120 >= 760){
+        entity.x -= entity.vx;
+        entity.y += entity.vy;
     }
+    else{
+        entity.x += entity.vx;
+        entity.y += entity.vy;
+    }
+
   }
-}
-
-class Player {
-  constructor() {
-    this.pos = new Vec2(0, 0);
-    this.angle = 0;
-  }
-}
-
-class Game {
-  constructor() {
-    this.player = new Player();
-    this.walls = [];
-  }
-  reset() {
-    this.player.pos = new Vec2(150, 250);
-    this.player.angle = 0;
-
-    this.walls = [
-      Ray2.withPoints(new Vec2(50, 50), new Vec2(100, 300)),
-      Ray2.withPoints(new Vec2(100, 300), new Vec2(250, 200)),
-      Ray2.withPoints(new Vec2(250, 200), new Vec2(50, 50)),
-    ];
-  }
-}
-
-// グローバル変数 Global variables
-let game;
-
-function setup() {
-  createCanvas(720, 480);
   
-  game = new Game();
-  game.reset();
-}
-
-function draw() {
-  noSmooth();
-
-  // 背景
-  background(64);
-
-  // 壁を描画. Draw the walls
-  strokeWeight(3);
-  stroke('white');
-  let walls = game.walls;
-  for(let wall of walls) {
-    line(wall.begin.x, wall.begin.y, wall.end.x, wall.end.y);
+  // プレイヤーエンティティ用
+  
+  function createPlayer() {
+    return {
+      x: 200,
+      y: 300,
+      vx: 0,
+      vy: 0
+    };
   }
-
-  // プレイヤーを描画. Draw the player
-  stroke('yellow');
-  strokeWeight(20);
-  let player = game.player;
-  point(player.pos.x, player.pos.y);
-
-  // キー入力. Key input
-  if (keyIsDown(LEFT_ARROW)) player.angle -= PI / 120;
-  if (keyIsDown(RIGHT_ARROW)) player.angle += PI / 120;
-
-  // 3Dビューを描画. Draw the 3d view.
-  {
-    let viewRect = new Ray2(new Vec2(380, 40), new Vec2(320, 240));
-
-    let fov = PI / 2;
-    let centerAngle = player.angle;
-    let leftAngle = centerAngle - fov/2;
-    let rightAngle = centerAngle + fov/2;
-    let beamTotal = 32;
-    let beamIndex = -1;
-    for(let angle=leftAngle; angle<rightAngle-0.01; angle+=fov/beamTotal) {
-      beamIndex++;
-      let beam = new Ray2(
-        player.pos.copy(),
-        new Vec2(cos(angle), sin(angle)).mult(120)
-      );
-      stroke('yellow');
-      strokeWeight(1);
-      line(beam.begin.x, beam.begin.y, beam.end.x, beam.end.y);
-
-      // 光線が2枚以上の壁にあたっていたら、一番近いものを採用する。
-      // Adapt the nearest beam.
-      let allHitBeamWays = walls.map(wall => beam.intersection(wall))
-        .filter(pos => pos !== null)
-        .map(pos => pos.sub(beam.begin));
-      if (allHitBeamWays.length === 0) continue;
-      let hitBeam = allHitBeamWays.reduce((a, b) => a.mag() < b.mag() ? a : b);
-
-      stroke('yellow');
-      strokeWeight(8);
-      let hitPos = hitBeam.add(beam.begin);
-      point(hitPos.x, hitPos.y);
-
-      let wallDist = hitBeam.mag();
-      let wallPerpDist = wallDist * cos(angle - centerAngle);
-      let lineHeight = constrain(2800 / wallPerpDist, 0, viewRect.way.y);
-      let lineBegin = viewRect.begin.add(
-        new Vec2(
-          viewRect.way.x/beamTotal*beamIndex,
-          viewRect.way.y/2-lineHeight/2
-        )
-      );
-      let lightness = 224;
-      strokeWeight(0);
-      fill(lightness);
-      rect(lineBegin.x, lineBegin.y, 7, lineHeight);
+  
+  function applyGravity(entity) {
+    entity.vy += 0.15;
+  }
+  
+  function applyJump(entity) {
+    entity.vy = -5;
+  }
+  
+  function drawPlayer(entity) {
+    square(entity.x, entity.y, 40);
+  }
+  
+  function playerIsAlive(entity) {
+    // プレイヤーの位置が生存圏内なら true を返す。
+    // 600 は画面の下端
+    return entity.y < 600 && entity.y > -20;
+  }
+  
+  // ブロックエンティティ用
+  
+  function createBlock(y) {
+    return {
+      x: 900,
+      y,
+      vx: -2,
+      vy: 0
+    };
+  }
+  
+  function drawBlock(entity) {
+    rect(entity.x, entity.y, 80, 400);
+  }
+  
+  function blockIsAlive(entity) {
+    // ブロックの位置が生存圏内なら true を返す。
+    // -100 は適当な値（ブロックが見えなくなる位置であればよい）
+    return -1000 < entity.x;
+  }
+  
+  // パーティクルエンティティ用
+  
+  function createParticle(x, y) {
+    let direction = random(TWO_PI);
+    let speed = 2;
+  
+    return {
+      x,
+      y,
+      vx: -2 + speed * cos(direction),
+      vy: speed * sin(direction),
+      life: 1 // = 100%
+    };
+  }
+  
+  function decreaseLife(particle) {
+    particle.life -= 0.02;
+  }
+  
+  function particleIsAlive(particle) {
+    return particle.life > 0;
+  }
+  
+  function drawParticle(particle) {
+    push();
+    noStroke();
+    fill(255, particle.life * 255);
+    square(particle.x, particle.y, particle.life * 10);
+    pop();
+  }
+  
+  // 複数のエンティティを処理する関数
+  
+  /**
+   * 2つのエンティティが衝突しているかどうかをチェックする
+   *
+   * @param entityA 衝突しているかどうかを確認したいエンティティ
+   * @param entityB 同上
+   * @param collisionXDistance 衝突しないギリギリのx距離
+   * @param collisionYDistance 衝突しないギリギリのy距離
+   * @returns 衝突していたら `true` そうでなければ `false` を返す
+   */
+  function entitiesAreColliding(
+    entityA,
+    entityB,
+    collisionXDistance,
+    collisionYDistance
+  ) {
+    // xとy、いずれかの距離が十分開いていたら、衝突していないので false を返す
+  
+    let currentXDistance = abs(entityA.x - entityB.x); // 現在のx距離
+    if (collisionXDistance <= currentXDistance) return false;
+  
+    let currentYDistance = abs(entityA.y - entityB.y); // 現在のy距離
+    if (collisionYDistance <= currentYDistance) return false;
+  
+    return true; // ここまで来たら、x方向でもy方向でも重なっているので true
+  }
+  
+  // ---- ゲーム全体に関わる部分 --------------------------------------------
+  
+  /** プレイヤーエンティティ */
+  let player;
+  
+  /** ブロックエンティティの配列 */
+  let blocks;
+  
+  /** パーティクルエンティティの配列 */
+  let particles;
+  
+  /** ゲームの状態。"play" か "gameover" を入れるものとする */
+  let gameState;
+  
+  /** ブロックを上下ペアで作成し、`blocks` に追加する */
+  function addBlockPair() {
+    let y = random(-100, 100);
+    blocks.push(createBlock(y)); // 上のブロック
+    blocks.push(createBlock(y + 600)); // 下のブロック
+  }
+  
+  /** ゲームオーバー画面を表示する */
+  function drawGameoverScreen() {
+    background(0, 192); // 透明度 192 の黒
+    fill(255);
+    textSize(64);
+    textAlign(CENTER, CENTER); // 横に中央揃え ＆ 縦にも中央揃え
+    text("SCORE", width / 2, height / 2); // 画面中央にテキスト表示
+    text(score, width / 2, height / 2 + 64);
+  }
+  
+  /** ゲームのリセット */
+  function resetGame() {
+    // 状態をリセット
+    gameState = "play";
+    f1 = 0;
+    score = 0;
+    // プレイヤーを作成
+    player = createPlayer();
+  
+    // ブロックの配列準備
+    blocks = [];
+  
+    // パーティクルの配列準備
+    particles = [];
+  }
+  
+  /** ゲームの更新 */
+  function updateGame() {
+    // ゲームオーバーなら更新しない
+    if (gameState === "gameover") return;
+  
+    // ブロックの追加
+    if (f1 % 120 === 1) {// 一定間隔で追加
+        if(f1 % 1120 < 400){
+            addBlockPair(blocks); 
+        }    
     }
-
-    // 3Dビューの枠を描画. Draw border lines of the 3d view.
-    noFill();
-    stroke('cyan');
-    strokeWeight(4);
-    rect(viewRect.pos.x, viewRect.pos.y, viewRect.way.x, viewRect.way.y);
+    // パーティクルの追加
+    particles.push(createParticle(player.x, player.y)); // プレイヤーの位置で
+  
+    // 死んだエンティティの削除
+    blocks = blocks.filter(blockIsAlive);
+    particles = particles.filter(particleIsAlive);
+  
+    // 全エンティティの位置を更新
+    updatePosition(player);
+    for (let block of blocks) updatePosition(block);
+    for (let particle of particles) updatePosition(particle);
+  
+    // プレイヤーに重力を適用
+    applyGravity(player);
+  
+    // パーティクルのライフ減少
+    for (let particle of particles) decreaseLife(particle);
+  
+    // プレイヤーが死んでいたらゲームオーバー
+    if (!playerIsAlive(player)) gameState = "gameover";
+  
+    // 衝突判定
+    for (let block of blocks) {
+      if (entitiesAreColliding(player, block, 20 + 40, 20 + 200)) {
+        gameState = "gameover";
+        break;
+      }
+    }
   }
-}
+  
+  /** ゲームの描画 */
+  function drawGame() {
+    fill(255);
+    // 全エンティティを描画
+    background(0);
+    drawPlayer(player);
+    for (let block of blocks) drawBlock(block);
+    for (let particle of particles) drawParticle(particle);
+    drawScore();
+    // ゲームオーバー状態なら、それ用の画面を表示
+    if (gameState === "gameover") drawGameoverScreen();
+  }
+  function drawScore() {
+    fill(100);
+    textAlign(RIGHT, TOP); // 横に中央揃え ＆ 縦にも中央揃え
+    text(score, width, 0);
+  }
+  
 
-function touchMoved(event) {
-  let player = game.player;
-  player.pos.x = event.clientX;
-  player.pos.y = event.clientY;
-}
+  /** マウスボタンが押されたときのゲームへの影響 */
+  function onMousePress() {
+    switch (gameState) {
+      case "play":
+        // プレイ中の状態ならプレイヤーをジャンプさせる
+        applyJump(player);
+        score += 100;
+        break;
+      case "gameover":
+        // ゲームオーバー状態ならリセット
+        resetGame();
+        break;
+    }
+  }
+  
+  // ---- setup/draw 他 --------------------------------------------------
+  
+  function setup() {
+    createCanvas(800, 600);
+    rectMode(CENTER);
+    textSize(64);
+    resetGame();
+  }
+  
+  function draw() {
+    updateGame();
+    drawGame();
+
+    f1 += 1;
+  }
+  
+  function mousePressed() {
+    onMousePress();
+  }
